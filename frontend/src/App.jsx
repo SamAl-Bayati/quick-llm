@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { pingBackend } from "./api/client";
+import ModelPicker from "./components/ModelPicker";
 
 function App() {
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
@@ -53,6 +54,8 @@ function App() {
           <p style={{ color: "#f97373", marginTop: "0.5rem" }}>{error}</p>
         )}
       </section>
+
+      <ModelPicker />
     </div>
   );
 }
