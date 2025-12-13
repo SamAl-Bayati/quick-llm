@@ -1,0 +1,80 @@
+name: Deploy backend (dev, OpenTofu)
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "backend/**"
+      - "infra/**"
+      - ".github/workflows/deploy-backend-dev.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Prune dev dependencies
+        working-directory: backend
+        run: npm prune --omit=dev
+
+      - name: Package Lambda zip for OpenTofu
+        run: |
+          ZIP_OUT="${GITHUB_WORKSPACE}/infra/function.zip"
+          rm -f "$ZIP_OUT"
+
+          cd "${GITHUB_WORKSPACE}/backend"
+          zip -r "$ZIP_OUT" \
+            index.js src node_modules package.json package-lock.json
+
+          unzip -l "$ZIP_OUT" | head -n 50
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: OpenTofu init (dev)
+        working-directory: infra
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          tofu init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${REPO}/dev/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="use_lockfile=true"
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: OpenTofu apply (dev)
+        working-directory: infra
+        run: |
+          tofu apply -auto-approve \
+            -var-file="environments/dev.tfvars" \
+            -var="lambda_zip_path=${GITHUB_WORKSPACE}/infra/function.zip"
+
+      - name: Smoke test (dev)
+        working-directory: infra
+        run: |
+          API=$(tofu output -raw api_endpoint)
+          echo "API=$API"
+          curl -sS "$API/health" | cat

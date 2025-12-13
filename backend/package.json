@@ -1,0 +1,23 @@
+{
+  "name": "aws-project-backend",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js",
+    "smoke:lambda": "node -e \"require('./index'); console.log('Lambda handler loaded OK');\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "serverless-http": "^4.0.0"
+  }
+}
