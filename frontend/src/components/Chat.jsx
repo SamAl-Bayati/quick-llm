@@ -11,6 +11,8 @@ import { resolveDevice } from "../lib/hardware";
 import { DEVICE } from "../utils/device";
 import { ERROR_ACTIONS } from "../lib/llmProtocol";
 import ProgressArea from "./ProgressArea";
+import ErrorBanner from "./ErrorBanner";
+import { mapWorkerError, offlineError } from "../lib/errorMapping";
 
 const CHAT_STATUS = {
   idle: "idle",
@@ -24,7 +26,7 @@ function buildPrompt(messages, nextUserText) {
   return `User: ${lastUser}\nAssistant:`;
 }
 
-function Chat({ selectedModel, settings }) {
+function Chat({ selectedModel, settings, onResetSession }) {
   const [status, setStatus] = useState(CHAT_STATUS.idle);
   const [initError, setInitError] = useState(null);
   const [banner, setBanner] = useState(null);
@@ -89,6 +91,14 @@ function Chat({ selectedModel, settings }) {
 
   async function handleInit() {
     try {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        setStatus(CHAT_STATUS.error);
+        setInitError(
+          offlineError("Model files cannot be downloaded while offline.")
+        );
+        return;
+      }
+
       resetWorker();
       setStatus(CHAT_STATUS.loading);
       setInitError(null);
@@ -136,7 +146,7 @@ function Chat({ selectedModel, settings }) {
       setStatus(CHAT_STATUS.ready);
     } catch (e) {
       setStatus(CHAT_STATUS.error);
-      setInitError(e?.message || "Failed to initialize model.");
+      setInitError(mapWorkerError(e, "init"));
     }
   }
 
@@ -222,7 +232,7 @@ function Chat({ selectedModel, settings }) {
         );
       }
     } catch (err) {
-      setSendError(err?.message || "Generation failed.");
+      setSendError(mapWorkerError(err, "generate"));
       setMessages((prev) =>
         prev.map((m, idx) =>
           idx === assistantIndex ? { ...m, content: "Generation failed." } : m
@@ -325,7 +335,27 @@ function Chat({ selectedModel, settings }) {
       </div>
 
       {initError && (
-        <div style={{ marginTop: "0.5rem", color: "#f97373" }}>{initError}</div>
+        <ErrorBanner
+          title={initError.title}
+          message={initError.message}
+          details={initError.details}
+          tone={initError.tone}
+          actions={[
+            {
+              label: "Retry init",
+              onClick: handleInit,
+              disabled: status === CHAT_STATUS.loading,
+            },
+            {
+              label: "Reset session",
+              onClick: () => {
+                if (typeof onResetSession === "function")
+                  onResetSession("Reset session (init error)");
+              },
+              disabled: typeof onResetSession !== "function",
+            },
+          ]}
+        />
       )}
 
       <div
@@ -376,9 +406,22 @@ function Chat({ selectedModel, settings }) {
         </div>
 
         {sendError && (
-          <div style={{ marginTop: "0.5rem", color: "#f97373" }}>
-            {sendError}
-          </div>
+          <ErrorBanner
+            title={sendError.title}
+            message={sendError.message}
+            details={sendError.details}
+            tone={sendError.tone}
+            actions={[
+              {
+                label: "Reset session",
+                onClick: () => {
+                  if (typeof onResetSession === "function")
+                    onResetSession("Reset session (generation error)");
+                },
+                disabled: typeof onResetSession !== "function",
+              },
+            ]}
+          />
         )}
       </form>
     </section>

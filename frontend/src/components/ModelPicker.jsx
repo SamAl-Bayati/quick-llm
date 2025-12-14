@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchModels } from "../api/models";
 import { getSelectedModelId, setSelectedModelId } from "../utils/storage";
+import ErrorBanner from "./ErrorBanner";
+import { mapModelListError } from "../lib/errorMapping";
 
 function ModelPicker({ onSelectedModelChange }) {
   const [models, setModels] = useState([]);
@@ -40,7 +42,7 @@ function ModelPicker({ onSelectedModelChange }) {
         }
       } catch (e) {
         if (cancelled) return;
-        setError("Failed to load models.");
+        setError(mapModelListError(e));
         setModels([]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -78,7 +80,15 @@ function ModelPicker({ onSelectedModelChange }) {
       {loading && <p style={{ marginTop: "0.5rem" }}>Loading models…</p>}
 
       {!loading && error && (
-        <p style={{ marginTop: "0.5rem", color: "#f97373" }}>{error}</p>
+        <ErrorBanner
+          title={error.title}
+          message={error.message}
+          details={error.details}
+          tone={error.tone}
+          actions={[
+            { label: "Retry", onClick: () => window.location.reload() },
+          ]}
+        />
       )}
 
       {!loading && !error && models.length === 0 && (

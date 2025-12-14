@@ -7,10 +7,14 @@ import StoragePanel from "./components/StoragePanel";
 import { loadSettings, saveSettings } from "./lib/settings";
 import { SETTINGS_DEFAULTS } from "./lib/llmConstants";
 import { resetWorker } from "./lib/workerClient";
+import { clearAppCaches } from "./utils/cache";
+import { clearAppLocalStorage } from "./utils/storage";
+import ErrorBanner from "./components/ErrorBanner";
+import { mapBackendError } from "./lib/errorMapping";
 
 function App() {
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
-  const [error, setError] = useState(null);
+  const [backendError, setBackendError] = useState(null);
   const [selectedModel, setSelectedModel] = useState(null);
   const [settings, setSettings] = useState(() => loadSettings());
   const [storageEpoch, setStorageEpoch] = useState(0);
@@ -20,9 +24,10 @@ function App() {
       try {
         const res = await pingBackend();
         setBackendStatus(`Backend OK: ${res.data.message}`);
+        setBackendError(null);
       } catch (err) {
         console.error(err);
-        setError("Cannot reach backend");
+        setBackendError(mapBackendError(err));
         setBackendStatus("Backend unavailable");
       }
     }
@@ -45,6 +50,19 @@ function App() {
   function handleCleared() {
     setSelectedModel(null);
     setSettings(SETTINGS_DEFAULTS);
+    setStorageEpoch((v) => v + 1);
+  }
+
+  async function resetSession(reason = "Reset session") {
+    resetWorker(reason);
+    try {
+      await clearAppCaches();
+    } catch {}
+    clearAppLocalStorage();
+    setSelectedModel(null);
+    setSettings(saveSettings(SETTINGS_DEFAULTS));
+    setBackendError(null);
+    setBackendStatus("Checking backend...");
     setStorageEpoch((v) => v + 1);
   }
 
@@ -77,8 +95,17 @@ function App() {
       >
         <h2>Backend connectivity</h2>
         <p style={{ marginTop: "0.5rem" }}>{backendStatus}</p>
-        {error && (
-          <p style={{ color: "#f97373", marginTop: "0.5rem" }}>{error}</p>
+        {backendError && (
+          <ErrorBanner
+            title={backendError.title}
+            message={backendError.message}
+            details={backendError.details}
+            tone={backendError.tone}
+            actions={[
+              { label: "Retry", onClick: () => window.location.reload() },
+              { label: "Reset session", onClick: () => resetSession() },
+            ]}
+          />
         )}
       </section>
 
@@ -99,7 +126,7 @@ function App() {
       <Chat
         key={`chat-${storageEpoch}`}
         selectedModel={selectedModel}
-        settings={settings}
+        onResetSession={resetSession}
       />
     </div>
   );
