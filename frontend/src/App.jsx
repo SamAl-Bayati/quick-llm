@@ -46,7 +46,7 @@ function App() {
       }}
     >
       <header style={{ marginBottom: "2rem" }}>
-        <h1 style={{ marginBottom: "0.5rem" }}>Signal Lab Template</h1>
+        <h1 style={{ marginBottom: "0.5rem" }}>Quick LLM</h1>
         <p style={{ opacity: 0.8, maxWidth: "40rem" }}>
           Minimal React + AWS-friendly template. Frontend talks to a backend API
           via <code>VITE_API_BASE_URL</code>.

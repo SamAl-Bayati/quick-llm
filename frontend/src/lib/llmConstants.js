@@ -1,6 +1,7 @@
 export const LLM_TIMEOUTS = {
   INIT_MS: 120_000,
   GENERATE_MS: 120_000,
+  WARMUP_MS: 60_000,
 };
 
 export const DTYPE_OPTIONS = ["q4", "q8"];
@@ -15,6 +16,12 @@ export const GENERATION_DEFAULTS = {
   MAX_NEW_TOKENS: SETTINGS_DEFAULTS.maxNewTokens,
   TEMPERATURE: SETTINGS_DEFAULTS.temperature,
 };
+
+export const INIT_PROGRESS_STEPS = [
+  { key: "fetch", label: "Fetching model files…" },
+  { key: "runtime", label: "Initializing runtime…" },
+  { key: "warmup", label: "Warming up…" },
+];
 
 export const LLM_QUALITY = {
   MIN_PRINTABLE_RATIO: 0.7,

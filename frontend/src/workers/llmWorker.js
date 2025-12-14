@@ -22,6 +22,14 @@ function post(type, requestId, payload) {
   self.postMessage({ type, requestId, payload });
 }
 
+function postInitStatus(requestId, step, message, percent) {
+  const payload = { stage: "init", step, message };
+  if (typeof percent === "number" && Number.isFinite(percent)) {
+    payload.percent = Math.max(0, Math.min(100, Math.round(percent)));
+  }
+  post(RESPONSE_TYPES.STATUS, requestId, payload);
+}
+
 function serializeError(e) {
   if (!e) return { message: "Unknown error" };
   if (typeof e === "number") {
@@ -53,10 +61,39 @@ function getTransformers() {
   return transformersPromise;
 }
 
-async function createGenerator({ modelId, dtype, device }) {
+function parseProgressPercent(p) {
+  if (!p) return null;
+  if (typeof p === "number") {
+    if (p > 1 && p <= 100) return p;
+    if (p >= 0 && p <= 1) return p * 100;
+    return null;
+  }
+
+  const obj = typeof p === "object" ? p : null;
+  const progress = obj?.progress;
+  if (typeof progress === "number") {
+    if (progress > 1 && progress <= 100) return progress;
+    if (progress >= 0 && progress <= 1) return progress * 100;
+  }
+
+  const loaded = obj?.loaded;
+  const total = obj?.total;
+  if (typeof loaded === "number" && typeof total === "number" && total > 0) {
+    return (loaded / total) * 100;
+  }
+
+  return null;
+}
+
+async function createGenerator({ modelId, dtype, device, onProgress }) {
   const { pipeline, env } = await getTransformers();
   configureTransformersEnv(env);
-  return pipeline("text-generation", modelId, { dtype, device });
+  return pipeline("text-generation", modelId, {
+    dtype,
+    device,
+    progress_callback:
+      typeof onProgress === "function" ? onProgress : undefined,
+  });
 }
 
 function resetModel() {
@@ -71,6 +108,21 @@ function requestAbort(targetRequestId) {
   }
   activeGeneration.abort = true;
   return true;
+}
+
+async function warmup(requestId) {
+  if (!generator) return;
+  const prompt = "User: hi\nAssistant:";
+  await withTimeout(
+    generator(prompt, {
+      max_new_tokens: 1,
+      temperature: 0,
+      do_sample: false,
+      return_full_text: false,
+    }),
+    LLM_TIMEOUTS.WARMUP_MS,
+    "Warmup timed out"
+  );
 }
 
 async function initModel({ modelId, dtype, device }, requestId) {
@@ -90,17 +142,34 @@ async function initModel({ modelId, dtype, device }, requestId) {
     device: requestedDevice,
   };
 
-  post(RESPONSE_TYPES.STATUS, requestId, {
-    stage: "init",
-    message: `Initializing (${preferred.device})`,
-  });
+  postInitStatus(requestId, "fetch", "Fetching model files…");
 
   try {
+    let lastPercent = -1;
+    let lastTs = 0;
+
     generator = await withTimeout(
-      createGenerator(preferred),
+      createGenerator({
+        ...preferred,
+        onProgress: (p) => {
+          const percent = parseProgressPercent(p);
+          if (percent == null) return;
+          const now = Date.now();
+          const rounded = Math.round(percent);
+          if (rounded === lastPercent && now - lastTs < 250) return;
+          lastPercent = rounded;
+          lastTs = now;
+          postInitStatus(requestId, "fetch", "Fetching model files…", rounded);
+        },
+      }),
       LLM_TIMEOUTS.INIT_MS,
       "Model initialization timed out"
     );
+
+    postInitStatus(requestId, "runtime", "Initializing runtime…");
+    postInitStatus(requestId, "warmup", "Warming up…");
+    await warmup(requestId);
+
     currentConfig = preferred;
     return currentConfig;
   } catch (e) {
@@ -113,10 +182,7 @@ async function initModel({ modelId, dtype, device }, requestId) {
       to: "wasm",
     });
 
-    post(RESPONSE_TYPES.STATUS, requestId, {
-      stage: "init",
-      message: "Restarting for WASM fallback",
-    });
+    postInitStatus(requestId, "runtime", "Initializing runtime…");
 
     const err = new Error(
       "WebGPU init failed, retry on WASM in a fresh worker"

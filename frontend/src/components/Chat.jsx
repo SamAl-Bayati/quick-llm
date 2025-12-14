@@ -10,6 +10,7 @@ import { GENERATION_DEFAULTS } from "../lib/llmConstants";
 import { resolveDevice } from "../lib/hardware";
 import { DEVICE } from "../utils/device";
 import { ERROR_ACTIONS } from "../lib/llmProtocol";
+import ProgressArea from "./ProgressArea";
 
 const CHAT_STATUS = {
   idle: "idle",
@@ -28,6 +29,12 @@ function Chat({ selectedModel, settings }) {
   const [initError, setInitError] = useState(null);
   const [banner, setBanner] = useState(null);
   const [modelConfig, setModelConfig] = useState(null);
+  const [initProgress, setInitProgress] = useState({
+    step: null,
+    percent: null,
+    message: null,
+    seen: [],
+  });
 
   const [messages, setMessages] = useState([
     { role: "assistant", content: "Initialize the model, then send a prompt." },
@@ -54,7 +61,31 @@ function Chat({ selectedModel, settings }) {
     setWorkerStatus(null);
     setBanner(null);
     setModelConfig(null);
+    setInitProgress({ step: null, percent: null, message: null, seen: [] });
   }, [modelId]);
+
+  function handleWorkerStatus(p) {
+    const msg = p?.message || null;
+    setWorkerStatus(msg);
+
+    if (p?.stage !== "init") return;
+    const step = typeof p?.step === "string" ? p.step : null;
+    const percent =
+      typeof p?.percent === "number" && Number.isFinite(p.percent)
+        ? p.percent
+        : null;
+
+    setInitProgress((prev) => {
+      const seen = Array.isArray(prev.seen) ? prev.seen : [];
+      const nextSeen = step && !seen.includes(step) ? [...seen, step] : seen;
+      return {
+        step: step || prev.step,
+        percent: step ? percent : prev.percent,
+        message: msg,
+        seen: nextSeen,
+      };
+    });
+  }
 
   async function handleInit() {
     try {
@@ -65,6 +96,7 @@ function Chat({ selectedModel, settings }) {
       setWorkerStatus(null);
       setBanner(null);
       setModelConfig(null);
+      setInitProgress({ step: null, percent: null, message: null, seen: [] });
       await nextFrame();
 
       const requestedDevice = resolveDevice(selectedModel?.preferredDevice);
@@ -78,7 +110,7 @@ function Chat({ selectedModel, settings }) {
       let config = null;
       try {
         config = await initModelInWorker(initPayload, {
-          onStatus: (p) => setWorkerStatus(p?.message || null),
+          onStatus: handleWorkerStatus,
           onBanner: (p) => setBanner(p?.message || null),
         });
       } catch (e) {
@@ -91,7 +123,7 @@ function Chat({ selectedModel, settings }) {
           config = await initModelInWorker(
             { ...initPayload, device: DEVICE.WASM },
             {
-              onStatus: (p) => setWorkerStatus(p?.message || null),
+              onStatus: handleWorkerStatus,
               onBanner: (p) => setBanner(p?.message || null),
             }
           );
@@ -113,6 +145,7 @@ function Chat({ selectedModel, settings }) {
     setStatus(CHAT_STATUS.idle);
     setInitError(null);
     setWorkerStatus(null);
+    setInitProgress({ step: null, percent: null, message: null, seen: [] });
   }
 
   function handleStop() {
@@ -243,6 +276,14 @@ function Chat({ selectedModel, settings }) {
           </div>
         )}
       </div>
+
+      {status === CHAT_STATUS.loading && (
+        <ProgressArea
+          currentStep={initProgress.step}
+          percent={initProgress.percent}
+          seenSteps={initProgress.seen}
+        />
+      )}
 
       {banner && (
         <div
