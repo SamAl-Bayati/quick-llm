@@ -202,6 +202,43 @@ async function initModel({ modelId, dtype, device }, requestId) {
     currentConfig = preferred;
     return currentConfig;
   } catch (e) {
+    if (isMissingFileError(e) && preferred.dtype) {
+      post(RESPONSE_TYPES.STATUS, requestId, {
+        stage: "init",
+        step: "fetch",
+        message: `Fetching model files… (dtype ${dtypeLabel(undefined)})`,
+      });
+
+      try {
+        generator = await withTimeout(
+          createGenerator({
+            modelId: preferred.modelId,
+            dtype: undefined,
+            device: preferred.device,
+          }),
+          LLM_TIMEOUTS.INIT_MS,
+          "Model initialization timed out"
+        );
+
+        post(RESPONSE_TYPES.BANNER, requestId, {
+          message: `Requested dtype "${dtypeLabel(
+            preferred.dtype
+          )}" not available for this model. Using "${dtypeLabel(undefined)}"`,
+          from: dtypeLabel(preferred.dtype),
+          to: dtypeLabel(undefined),
+        });
+
+        postInitStatus(requestId, "runtime", "Initializing runtime…");
+        postInitStatus(requestId, "warmup", "Warming up…");
+        await warmup(requestId);
+
+        currentConfig = { ...preferred, dtype: undefined };
+        return currentConfig;
+      } catch (e2) {
+        if (!isMissingFileError(e2)) throw e2;
+      }
+    }
+
     if (preferred.device === "wasm" && isMissingFileError(e)) {
       const fallbacks = unique(buildWasmDtypeFallbacks(preferred.dtype));
 

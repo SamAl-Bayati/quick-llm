@@ -1,6 +1,7 @@
 export const ERROR_KIND = {
   OFFLINE: "offline",
   NETWORK: "network",
+  AUTH: "auth",
   OOM: "oom",
   INIT: "init",
   GENERATE: "generate",
@@ -111,6 +112,26 @@ export function mapWorkerError(err, stage) {
   const msg = toText(err);
   const stack = typeof err?.stack === "string" ? err.stack : "";
   const combined = `${msg}\n${stack}`;
+
+  const isAuth = includesAny(combined, [
+    "unauthorized access to file",
+    "not authorized",
+    "status code 401",
+    "status code 403",
+    "forbidden",
+    "requires authentication",
+  ]);
+
+  if (isAuth) {
+    return {
+      kind: ERROR_KIND.AUTH,
+      title: "Model download not permitted",
+      message:
+        "This model is gated or private on Hugging Face, so the browser cannot download it. Pick a different model.",
+      details: msg || null,
+      tone: "warning",
+    };
+  }
 
   const isOom = includesAny(combined, [
     "out of memory",

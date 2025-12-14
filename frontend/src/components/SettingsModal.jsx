@@ -144,7 +144,7 @@ function SettingsModal({
               className="q-noSpin"
               type="number"
               min={1}
-              max={512}
+              max={1024}
               value={s.maxNewTokens}
               onChange={(e) => update({ maxNewTokens: e.target.value })}
             />
