@@ -2,9 +2,9 @@ environment = "prod"
 aws_region  = "us-east-1"
 
 project_name = "quickllm-portfolio-backend"
-frontend_url = "https://example.com"
+frontend_url = "https://quickllm.samalbayati.com"
 additional_allowed_origins = [
-  "https://example.com"
+  "https://quickllm.samalbayati.com"
 ]
 
 node_env              = "production"
