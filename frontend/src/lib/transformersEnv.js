@@ -2,7 +2,8 @@ export function configureTransformersEnv(env) {
   const wasm = env?.backends?.onnx?.wasm;
   if (!wasm) return;
 
-  wasm.proxy = true;
+  const isWorker = typeof window === "undefined" && typeof self !== "undefined";
+  wasm.proxy = !isWorker;
 
   const hc =
     typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 1 : 1;

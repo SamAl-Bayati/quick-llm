@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { generate, initModel, resetModel } from "../lib/llmClient";
+import {
+  abortWorker,
+  generateInWorker,
+  initModelInWorker,
+  resetWorker,
+} from "../lib/workerClient";
 import { nextFrame } from "../lib/async";
+import { GENERATION_DEFAULTS } from "../lib/llmConstants";
 
 const CHAT_STATUS = {
   idle: "idle",
@@ -24,6 +30,7 @@ function Chat({ selectedModel }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
+  const [workerStatus, setWorkerStatus] = useState(null);
 
   const modelId = selectedModel?.id || "";
   const modelLabel =
@@ -33,14 +40,16 @@ function Chat({ selectedModel }) {
     Boolean(modelId) &&
     status !== CHAT_STATUS.loading &&
     status !== CHAT_STATUS.ready;
+
   const canSend =
     status === CHAT_STATUS.ready && !sending && input.trim().length > 0;
 
   useEffect(() => {
-    resetModel();
+    resetWorker();
     setStatus(CHAT_STATUS.idle);
     setInitError(null);
     setSendError(null);
+    setWorkerStatus(null);
   }, [modelId]);
 
   async function handleInit() {
@@ -48,19 +57,39 @@ function Chat({ selectedModel }) {
       setStatus(CHAT_STATUS.loading);
       setInitError(null);
       setSendError(null);
+      setWorkerStatus(null);
       await nextFrame();
 
-      await initModel({
-        modelId,
-        dtype: selectedModel?.defaultDtype,
-        device: selectedModel?.preferredDevice,
-      });
+      await initModelInWorker(
+        {
+          modelId,
+          dtype: selectedModel?.defaultDtype,
+          device: selectedModel?.preferredDevice,
+        },
+        {
+          onStatus: (p) => setWorkerStatus(p?.message || null),
+        }
+      );
 
       setStatus(CHAT_STATUS.ready);
     } catch (e) {
       setStatus(CHAT_STATUS.error);
       setInitError(e?.message || "Failed to initialize model.");
     }
+  }
+
+  async function handleAbort() {
+    abortWorker();
+    setSending(false);
+    setWorkerStatus("Aborted");
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: "Generation aborted. Re-initialize if needed.",
+      },
+    ]);
+    setStatus(CHAT_STATUS.idle);
   }
 
   async function handleSend(e) {
@@ -70,22 +99,53 @@ function Chat({ selectedModel }) {
 
     setSending(true);
     setSendError(null);
+    setWorkerStatus(null);
 
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setInput("");
     await nextFrame();
 
+    const assistantIndex = messages.length + 1;
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
     try {
       const prompt = buildPrompt(messages, text);
-      const reply = await generate({
-        prompt,
-        maxNewTokens: 32,
-        temperature: 0.4,
-      });
+      let acc = "";
 
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      const finalText = await generateInWorker(
+        {
+          prompt,
+          maxNewTokens: GENERATION_DEFAULTS.MAX_NEW_TOKENS,
+          temperature: GENERATION_DEFAULTS.TEMPERATURE,
+        },
+        {
+          onStatus: (p) => setWorkerStatus(p?.message || null),
+          onToken: (p) => {
+            const chunk = p?.text || "";
+            acc += chunk;
+            setMessages((prev) =>
+              prev.map((m, idx) =>
+                idx === assistantIndex ? { ...m, content: acc } : m
+              )
+            );
+          },
+        }
+      );
+
+      if (finalText && finalText !== acc) {
+        setMessages((prev) =>
+          prev.map((m, idx) =>
+            idx === assistantIndex ? { ...m, content: finalText } : m
+          )
+        );
+      }
     } catch (err) {
       setSendError(err?.message || "Generation failed.");
+      setMessages((prev) =>
+        prev.map((m, idx) =>
+          idx === assistantIndex ? { ...m, content: "Generation failed." } : m
+        )
+      );
     } finally {
       setSending(false);
     }
@@ -118,6 +178,11 @@ function Chat({ selectedModel }) {
         <div style={{ marginTop: "0.25rem" }}>
           <strong>Status:</strong> {statusText}
         </div>
+        {workerStatus && (
+          <div style={{ marginTop: "0.25rem", opacity: 0.85 }}>
+            <strong>Worker:</strong> {workerStatus}
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
@@ -127,19 +192,16 @@ function Chat({ selectedModel }) {
             : "Initialize model"}
         </button>
 
-        {status === CHAT_STATUS.loading && (
-          <button
-            type="button"
-            onClick={() => {
-              resetModel();
-              setStatus(CHAT_STATUS.idle);
-              setInitError(null);
-            }}
-          >
-            Cancel
+        {(status === CHAT_STATUS.loading || sending) && (
+          <button type="button" onClick={handleAbort}>
+            Abort
           </button>
         )}
       </div>
+
+      {initError && (
+        <div style={{ marginTop: "0.5rem", color: "#f97373" }}>{initError}</div>
+      )}
 
       <div
         style={{

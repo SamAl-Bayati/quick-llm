@@ -1,0 +1,9 @@
+export const LLM_TIMEOUTS = {
+  INIT_MS: 120_000,
+  GENERATE_MS: 120_000,
+};
+
+export const GENERATION_DEFAULTS = {
+  MAX_NEW_TOKENS: 32,
+  TEMPERATURE: 0.4,
+};
