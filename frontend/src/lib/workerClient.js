@@ -71,23 +71,16 @@ function ensureWorker() {
     }
   };
 
-  worker.onerror = () => {
-    const err = new Error("Worker crashed");
-    resetWorker();
-    rejectAll(err);
-  };
+  worker.onerror = () => resetWorker("Worker crashed");
 
-  worker.onmessageerror = () => {
-    const err = new Error("Worker message error");
-    resetWorker();
-    rejectAll(err);
-  };
+  worker.onmessageerror = () => resetWorker("Worker message error");
 
   return worker;
 }
 
-export function resetWorker() {
+export function resetWorker(reason = "Worker reset") {
   if (!worker) return;
+  rejectAll(new Error(reason));
   try {
     worker.terminate();
   } finally {

@@ -1,4 +1,4 @@
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   selectedModelId: "selectedModelId",
   llmSettings: "llmSettings",
 };
@@ -40,6 +40,14 @@ export function setLlmSettings(settings) {
       return;
     }
     localStorage.setItem(STORAGE_KEYS.llmSettings, JSON.stringify(settings));
+  } catch {
+    // ignore
+  }
+}
+
+export function clearAppLocalStorage() {
+  try {
+    Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
   } catch {
     // ignore
   }

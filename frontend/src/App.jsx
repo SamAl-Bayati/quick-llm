@@ -3,14 +3,17 @@ import { pingBackend } from "./api/client";
 import ModelPicker from "./components/ModelPicker";
 import Chat from "./components/Chat";
 import SettingsPanel from "./components/SettingsPanel";
+import StoragePanel from "./components/StoragePanel";
 import { loadSettings, saveSettings } from "./lib/settings";
 import { SETTINGS_DEFAULTS } from "./lib/llmConstants";
+import { resetWorker } from "./lib/workerClient";
 
 function App() {
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
   const [error, setError] = useState(null);
   const [selectedModel, setSelectedModel] = useState(null);
   const [settings, setSettings] = useState(() => loadSettings());
+  const [storageEpoch, setStorageEpoch] = useState(0);
 
   useEffect(() => {
     async function checkBackend() {
@@ -33,6 +36,16 @@ function App() {
 
   function handleSettingsReset() {
     setSettings(saveSettings(SETTINGS_DEFAULTS));
+  }
+
+  function handleBeforeClear() {
+    resetWorker("Clearing cache");
+  }
+
+  function handleCleared() {
+    setSelectedModel(null);
+    setSettings(SETTINGS_DEFAULTS);
+    setStorageEpoch((v) => v + 1);
   }
 
   return (
@@ -69,13 +82,25 @@ function App() {
         )}
       </section>
 
-      <ModelPicker onSelectedModelChange={setSelectedModel} />
+      <ModelPicker
+        key={`model-${storageEpoch}`}
+        onSelectedModelChange={setSelectedModel}
+      />
       <SettingsPanel
+        key={`settings-${storageEpoch}`}
         settings={settings}
         onChange={handleSettingsChange}
         onReset={handleSettingsReset}
       />
-      <Chat selectedModel={selectedModel} settings={settings} />
+      <StoragePanel
+        onBeforeClear={handleBeforeClear}
+        onCleared={handleCleared}
+      />
+      <Chat
+        key={`chat-${storageEpoch}`}
+        selectedModel={selectedModel}
+        settings={settings}
+      />
     </div>
   );
 }
