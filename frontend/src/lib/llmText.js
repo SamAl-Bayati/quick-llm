@@ -15,6 +15,10 @@ export function extractGeneratedText(output, prompt) {
     if (first && typeof first.generated_text === "string") {
       return stripPromptPrefix(first.generated_text, prompt);
     }
+    if (first && Array.isArray(first.generated_text)) {
+      const last = first.generated_text[first.generated_text.length - 1];
+      if (last && typeof last.content === "string") return last.content.trim();
+    }
     if (first && typeof first.text === "string") {
       return stripPromptPrefix(first.text, prompt);
     }
@@ -22,6 +26,10 @@ export function extractGeneratedText(output, prompt) {
 
   if (output && typeof output.generated_text === "string") {
     return stripPromptPrefix(output.generated_text, prompt);
+  }
+  if (output && Array.isArray(output.generated_text)) {
+    const last = output.generated_text[output.generated_text.length - 1];
+    if (last && typeof last.content === "string") return last.content.trim();
   }
 
   return "";
@@ -34,7 +42,9 @@ export function cleanReply(text, prompt) {
   t = t.replace(/^\s*(assistant|answer)\s*:\s*/i, "");
   t = t.replace(/\n\s*(assistant|answer)\s*:\s*/gi, "\n");
 
-  t = t.split(/\n\s*(user|assistant|question)\s*:\s*/i)[0].trim();
+  if (typeof prompt === "string") {
+    t = t.split(/\n\s*(user|assistant|question)\s*:\s*/i)[0].trim();
+  }
 
   const m =
     typeof prompt === "string"

@@ -30,10 +30,16 @@ function ModelPicker({ onSelectedModelChange }) {
         setModels(Array.isArray(list) ? list : []);
 
         const stored = getSelectedModelId();
-        const initial =
-          stored && list.some((m) => m.id === stored)
-            ? stored
-            : list[0]?.id || "";
+        function isEnabled(m) {
+          return m?.enabled !== false;
+        }
+
+        const storedOk =
+          stored && list.some((m) => m.id === stored && isEnabled(m));
+
+        const firstEnabled = (list.find(isEnabled) || null)?.id || "";
+
+        const initial = storedOk ? stored : firstEnabled;
 
         setSelectedModelIdState(initial);
         setSelectedModelId(initial);
@@ -57,10 +63,12 @@ function ModelPicker({ onSelectedModelChange }) {
 
   function handleChange(e) {
     const nextId = e.target.value;
+    const nextModel = models.find((m) => m.id === nextId) || null;
+    if (nextModel?.enabled === false) return;
     setSelectedModelIdState(nextId);
     setSelectedModelId(nextId);
     if (typeof onSelectedModelChange === "function") {
-      onSelectedModelChange(models.find((m) => m.id === nextId) || null);
+      onSelectedModelChange(nextModel);
     }
   }
 
@@ -114,9 +122,10 @@ function ModelPicker({ onSelectedModelChange }) {
               }}
             >
               {models.map((m) => (
-                <option key={m.id} value={m.id}>
+                <option key={m.id} value={m.id} disabled={m.enabled === false}>
                   {(m.displayName || m.id) +
-                    (m.recommended ? " (recommended)" : "")}
+                    (m.recommended ? " (recommended)" : "") +
+                    (m.enabled === false ? " (not supported yet)" : "")}
                 </option>
               ))}
             </select>

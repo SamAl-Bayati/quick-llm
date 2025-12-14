@@ -17,7 +17,18 @@ export function normalizeDtypeForDevice({ dtype, device }) {
   if (dtype === DTYPES.AUTO) return undefined;
 
   if (device === "webgpu") {
-    if (dtype === DTYPES.FP16 || dtype === DTYPES.FP32) return dtype;
+    if (
+      dtype === DTYPES.FP16 ||
+      dtype === DTYPES.FP32 ||
+      dtype === DTYPES.Q4 ||
+      dtype === DTYPES.Q4F16 ||
+      dtype === DTYPES.BNB4 ||
+      dtype === DTYPES.Q8 ||
+      dtype === DTYPES.INT8 ||
+      dtype === DTYPES.UINT8
+    ) {
+      return dtype;
+    }
     return DTYPES.FP16;
   }
 

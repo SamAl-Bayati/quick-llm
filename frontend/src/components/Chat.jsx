@@ -13,6 +13,7 @@ import { ERROR_ACTIONS } from "../lib/llmProtocol";
 import ProgressArea from "./ProgressArea";
 import ErrorBanner from "./ErrorBanner";
 import { mapWorkerError, offlineError } from "../lib/errorMapping";
+import { buildChatMessages } from "../lib/chatMessages";
 
 const CHAT_STATUS = {
   idle: "idle",
@@ -20,11 +21,6 @@ const CHAT_STATUS = {
   ready: "ready",
   error: "error",
 };
-
-function buildPrompt(messages, nextUserText) {
-  const lastUser = nextUserText.trim();
-  return `User: ${lastUser}\nAssistant:`;
-}
 
 function Chat({ selectedModel, settings, onResetSession }) {
   const [status, setStatus] = useState(CHAT_STATUS.idle);
@@ -50,7 +46,9 @@ function Chat({ selectedModel, settings, onResetSession }) {
   const modelLabel =
     selectedModel?.displayName || modelId || "No model selected";
 
-  const canInit = Boolean(modelId) && status !== CHAT_STATUS.loading;
+  const isEnabled = selectedModel?.enabled !== false;
+  const canInit =
+    Boolean(modelId) && isEnabled && status !== CHAT_STATUS.loading;
 
   const canSend =
     status === CHAT_STATUS.ready && !sending && input.trim().length > 0;
@@ -111,9 +109,15 @@ function Chat({ selectedModel, settings, onResetSession }) {
 
       const requestedDevice = resolveDevice(selectedModel?.preferredDevice);
 
+      const dtypeFromSettings = settings?.dtype ?? "auto";
+      const requestedDtype =
+        dtypeFromSettings === "auto"
+          ? selectedModel?.defaultDtype ?? "auto"
+          : dtypeFromSettings;
+
       const initPayload = {
         modelId,
-        dtype: settings?.dtype ?? selectedModel?.defaultDtype,
+        dtype: requestedDtype,
         device: requestedDevice,
       };
 
@@ -180,7 +184,7 @@ function Chat({ selectedModel, settings, onResetSession }) {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
-      const prompt = buildPrompt(messages, text);
+      const prompt = buildChatMessages(messages, text);
       let acc = "";
 
       const result = await generateInWorker(
