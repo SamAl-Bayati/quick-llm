@@ -11,6 +11,8 @@ import { clearAppCaches } from "./utils/cache";
 import { clearAppLocalStorage } from "./utils/storage";
 import ErrorBanner from "./components/ErrorBanner";
 import { mapBackendError } from "./lib/errorMapping";
+import { ENV } from "./config/env";
+import { error } from "./utils/log";
 
 function App() {
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
@@ -26,7 +28,7 @@ function App() {
         setBackendStatus(`Backend OK: ${res.data.message}`);
         setBackendError(null);
       } catch (err) {
-        console.error(err);
+        error(err);
         setBackendError(mapBackendError(err));
         setBackendStatus("Backend unavailable");
       }
@@ -95,6 +97,10 @@ function App() {
       >
         <h2>Backend connectivity</h2>
         <p style={{ marginTop: "0.5rem" }}>{backendStatus}</p>
+        <div style={{ marginTop: "0.25rem", opacity: 0.85 }}>
+          <strong>VITE_API_BASE_URL:</strong>{" "}
+          <code>{ENV.API_BASE_URL || "(not set)"}</code>
+        </div>
         {backendError && (
           <ErrorBanner
             title={backendError.title}
