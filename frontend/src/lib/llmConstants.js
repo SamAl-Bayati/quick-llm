@@ -7,3 +7,8 @@ export const GENERATION_DEFAULTS = {
   MAX_NEW_TOKENS: 32,
   TEMPERATURE: 0.4,
 };
+
+export const LLM_QUALITY = {
+  MIN_PRINTABLE_RATIO: 0.7,
+  MIN_LETTER_RATIO: 0.35,
+};

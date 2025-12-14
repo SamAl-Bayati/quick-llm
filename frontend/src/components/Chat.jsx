@@ -7,6 +7,9 @@ import {
 } from "../lib/workerClient";
 import { nextFrame } from "../lib/async";
 import { GENERATION_DEFAULTS } from "../lib/llmConstants";
+import { resolveDevice } from "../lib/hardware";
+import { DEVICE } from "../utils/device";
+import { ERROR_ACTIONS } from "../lib/llmProtocol";
 
 const CHAT_STATUS = {
   idle: "idle",
@@ -23,6 +26,8 @@ function buildPrompt(messages, nextUserText) {
 function Chat({ selectedModel }) {
   const [status, setStatus] = useState(CHAT_STATUS.idle);
   const [initError, setInitError] = useState(null);
+  const [banner, setBanner] = useState(null);
+  const [modelConfig, setModelConfig] = useState(null);
 
   const [messages, setMessages] = useState([
     { role: "assistant", content: "Initialize the model, then send a prompt." },
@@ -50,6 +55,8 @@ function Chat({ selectedModel }) {
     setInitError(null);
     setSendError(null);
     setWorkerStatus(null);
+    setBanner(null);
+    setModelConfig(null);
   }, [modelId]);
 
   async function handleInit() {
@@ -58,19 +65,44 @@ function Chat({ selectedModel }) {
       setInitError(null);
       setSendError(null);
       setWorkerStatus(null);
+      setBanner(null);
+      setModelConfig(null);
       await nextFrame();
 
-      await initModelInWorker(
-        {
-          modelId,
-          dtype: selectedModel?.defaultDtype,
-          device: selectedModel?.preferredDevice,
-        },
-        {
-          onStatus: (p) => setWorkerStatus(p?.message || null),
-        }
-      );
+      const requestedDevice = resolveDevice(selectedModel?.preferredDevice);
 
+      const initPayload = {
+        modelId,
+        dtype: selectedModel?.defaultDtype,
+        device: requestedDevice,
+      };
+
+      let config = null;
+      try {
+        config = await initModelInWorker(initPayload, {
+          onStatus: (p) => setWorkerStatus(p?.message || null),
+          onBanner: (p) => setBanner(p?.message || null),
+        });
+      } catch (e) {
+        if (
+          e?.action === ERROR_ACTIONS.RESTART_WASM &&
+          requestedDevice === DEVICE.WEBGPU
+        ) {
+          setWorkerStatus("Retrying on WASM...");
+          resetWorker();
+          config = await initModelInWorker(
+            { ...initPayload, device: DEVICE.WASM },
+            {
+              onStatus: (p) => setWorkerStatus(p?.message || null),
+              onBanner: (p) => setBanner(p?.message || null),
+            }
+          );
+        } else {
+          throw e;
+        }
+      }
+
+      setModelConfig(config);
       setStatus(CHAT_STATUS.ready);
     } catch (e) {
       setStatus(CHAT_STATUS.error);
@@ -191,12 +223,34 @@ function Chat({ selectedModel }) {
         <div style={{ marginTop: "0.25rem" }}>
           <strong>Status:</strong> {statusText}
         </div>
+        {modelConfig?.device && (
+          <div style={{ marginTop: "0.25rem", opacity: 0.85 }}>
+            <strong>Device:</strong> {modelConfig.device}
+          </div>
+        )}
         {workerStatus && (
           <div style={{ marginTop: "0.25rem", opacity: 0.85 }}>
             <strong>Worker:</strong> {workerStatus}
           </div>
         )}
       </div>
+
+      {banner && (
+        <div
+          style={{
+            marginTop: "0.75rem",
+            padding: "0.6rem 0.75rem",
+            borderRadius: "0.5rem",
+            border: "1px solid rgba(251, 191, 36, 0.35)",
+            background: "rgba(251, 191, 36, 0.12)",
+            color: "#fde68a",
+            textAlign: "left",
+            fontSize: "0.95rem",
+          }}
+        >
+          {banner}
+        </div>
+      )}
 
       <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
         <button onClick={handleInit} disabled={!canInit}>

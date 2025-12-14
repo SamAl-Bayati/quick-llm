@@ -1,11 +1,11 @@
+import { DEVICE, getPreferredDevice } from "../utils/device";
+
 export function isWebGpuSupported() {
-  if (typeof navigator === "undefined" || !navigator.gpu) return false;
-  const ua = navigator.userAgent || "";
-  if (ua.includes("Firefox")) return false;
-  return true;
+  return getPreferredDevice() === DEVICE.WEBGPU;
 }
 
 export function resolveDevice(preferred) {
-  if (preferred === "webgpu" && !isWebGpuSupported()) return "wasm";
-  return preferred || "wasm";
+  if (!preferred || preferred === "auto") return getPreferredDevice();
+  if (preferred === DEVICE.WEBGPU) return getPreferredDevice();
+  return preferred;
 }

@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "copy:ort": "node scripts/copy-ort.mjs",
+    "postinstall": "npm run copy:ort",
+    "dev": "npm run copy:ort && vite",
+    "build": "npm run copy:ort && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

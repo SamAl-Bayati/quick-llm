@@ -37,6 +37,11 @@ function ensureWorker() {
       return;
     }
 
+    if (type === RESPONSE_TYPES.BANNER) {
+      entry.onBanner?.(payload);
+      return;
+    }
+
     if (type === RESPONSE_TYPES.TOKEN) {
       entry.onToken?.(payload);
       return;
@@ -58,12 +63,22 @@ function ensureWorker() {
     if (type === RESPONSE_TYPES.ERROR) {
       pending.delete(requestId);
       if (activeGenerateRequestId === requestId) activeGenerateRequestId = null;
-      entry.reject(new Error(payload?.message || "Worker error"));
+      const err = new Error(payload?.message || "Worker error");
+      if (payload?.stack) err.stack = payload.stack;
+      err.config = payload?.config || null;
+      err.action = payload?.action || null;
+      entry.reject(err);
     }
   };
 
   worker.onerror = () => {
     const err = new Error("Worker crashed");
+    resetWorker();
+    rejectAll(err);
+  };
+
+  worker.onmessageerror = () => {
+    const err = new Error("Worker message error");
     resetWorker();
     rejectAll(err);
   };
@@ -95,6 +110,7 @@ function send(type, payload, handlers) {
       reject,
       onToken: handlers?.onToken || null,
       onStatus: handlers?.onStatus || null,
+      onBanner: handlers?.onBanner || null,
     });
 
     w.postMessage({ type, requestId, payload });
@@ -120,7 +136,7 @@ export function initModelInWorker({ modelId, dtype, device }, handlers) {
   return send(
     REQUEST_TYPES.INIT,
     { modelId, dtype, device },
-    { onStatus: handlers?.onStatus }
+    { onStatus: handlers?.onStatus, onBanner: handlers?.onBanner }
   );
 }
 

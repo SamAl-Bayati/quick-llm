@@ -1,9 +1,16 @@
 import { withTimeout } from "../lib/async";
-import { resolveDevice } from "../lib/hardware";
 import { configureTransformersEnv } from "../lib/transformersEnv";
 import { cleanReply, extractGeneratedText } from "../lib/llmText";
 import { LLM_TIMEOUTS } from "../lib/llmConstants";
-import { REQUEST_TYPES, RESPONSE_TYPES } from "../lib/llmProtocol";
+import {
+  REQUEST_TYPES,
+  RESPONSE_TYPES,
+  ERROR_ACTIONS,
+} from "../lib/llmProtocol";
+import {
+  normalizeDtypeForDevice,
+  isProbablyGarbledText,
+} from "../lib/llmDevice";
 
 let generator = null;
 let currentConfig = null;
@@ -13,6 +20,30 @@ let activeGeneration = null;
 
 function post(type, requestId, payload) {
   self.postMessage({ type, requestId, payload });
+}
+
+function serializeError(e) {
+  if (!e) return { message: "Unknown error" };
+  if (typeof e === "number") {
+    return { message: `ORT init failed (code ${e})` };
+  }
+  if (e instanceof Error) {
+    return {
+      message: `${e.name}: ${e.message}`,
+      stack: e.stack || "",
+      action: e.action || null,
+    };
+  }
+  if (typeof e === "string") return { message: e };
+  try {
+    const obj = e && typeof e === "object" ? e : null;
+    return {
+      message: obj?.message ? String(obj.message) : JSON.stringify(e),
+      action: obj?.action || null,
+    };
+  } catch {
+    return { message: String(e) };
+  }
 }
 
 function getTransformers() {
@@ -47,9 +78,17 @@ async function initModel({ modelId, dtype, device }, requestId) {
 
   resetModel();
 
-  const resolvedDevice = resolveDevice(device);
-  const preferred = { modelId, dtype, device: resolvedDevice };
-  const fallback = { modelId, dtype: undefined, device: "wasm" };
+  const requestedDevice = device || "wasm";
+  const normalizedDtype = normalizeDtypeForDevice({
+    dtype,
+    device: requestedDevice,
+  });
+
+  const preferred = {
+    modelId,
+    dtype: normalizedDtype,
+    device: requestedDevice,
+  };
 
   post(RESPONSE_TYPES.STATUS, requestId, {
     stage: "init",
@@ -64,19 +103,26 @@ async function initModel({ modelId, dtype, device }, requestId) {
     );
     currentConfig = preferred;
     return currentConfig;
-  } catch {
-    post(RESPONSE_TYPES.STATUS, requestId, {
-      stage: "init",
-      message: "Falling back to WASM",
+  } catch (e) {
+    const shouldFallback = preferred.device !== "wasm";
+    if (!shouldFallback) throw e;
+
+    post(RESPONSE_TYPES.BANNER, requestId, {
+      message: "Fell back to CPU (WASM)",
+      from: preferred.device,
+      to: "wasm",
     });
 
-    generator = await withTimeout(
-      createGenerator(fallback),
-      LLM_TIMEOUTS.INIT_MS,
-      "Model initialization timed out (fallback)"
+    post(RESPONSE_TYPES.STATUS, requestId, {
+      stage: "init",
+      message: "Restarting for WASM fallback",
+    });
+
+    const err = new Error(
+      "WebGPU init failed, retry on WASM in a fresh worker"
     );
-    currentConfig = fallback;
-    return currentConfig;
+    err.action = ERROR_ACTIONS.RESTART_WASM;
+    throw err;
   }
 }
 
@@ -90,21 +136,26 @@ async function runGenerate({ prompt, maxNewTokens, temperature }, requestId) {
 
   activeGeneration = { requestId, abort: false };
 
-  let acc = "";
+  async function generateOnce({ streamTokens }) {
+    let acc = "";
 
-  try {
     const { TextStreamer } = await getTransformers();
 
-    const streamer = new TextStreamer(generator.tokenizer, {
-      skip_prompt: true,
-      skip_special_tokens: true,
-      callback_function: (chunk) => {
-        if (activeGeneration?.abort) throw new Error("ABORTED");
-        if (typeof chunk !== "string" || chunk.length === 0) return;
-        acc += chunk;
-        post(RESPONSE_TYPES.TOKEN, requestId, { text: chunk, isFinal: false });
-      },
-    });
+    const streamer = streamTokens
+      ? new TextStreamer(generator.tokenizer, {
+          skip_prompt: true,
+          skip_special_tokens: true,
+          callback_function: (chunk) => {
+            if (activeGeneration?.abort) throw new Error("ABORTED");
+            if (typeof chunk !== "string" || chunk.length === 0) return;
+            acc += chunk;
+            post(RESPONSE_TYPES.TOKEN, requestId, {
+              text: chunk,
+              isFinal: false,
+            });
+          },
+        })
+      : null;
 
     const out = await withTimeout(
       generator(prompt, {
@@ -114,7 +165,7 @@ async function runGenerate({ prompt, maxNewTokens, temperature }, requestId) {
         return_full_text: false,
         repetition_penalty: 1.1,
         no_repeat_ngram_size: 3,
-        streamer,
+        streamer: streamer || undefined,
       }),
       LLM_TIMEOUTS.GENERATE_MS,
       "Generation timed out"
@@ -124,20 +175,90 @@ async function runGenerate({ prompt, maxNewTokens, temperature }, requestId) {
     const fallback = cleanReply(extractGeneratedText(out, prompt), prompt);
     const text = streamed || fallback;
 
+    return { text, streamedText: streamed };
+  }
+
+  try {
+    const first = await generateOnce({ streamTokens: true });
+
+    const aborted =
+      typeof first?.text === "string" && activeGeneration?.abort === true;
+
+    if (aborted) {
+      post(RESPONSE_TYPES.STATUS, requestId, {
+        stage: "abort",
+        message: "Aborted",
+      });
+      post(RESPONSE_TYPES.DONE, requestId, {
+        text: cleanReply(first.text, prompt),
+        aborted: true,
+      });
+      return;
+    }
+
+    const text = first?.text || "";
     if (!text) throw new Error("Empty generation result");
 
-    post(RESPONSE_TYPES.DONE, requestId, { text, aborted: false });
+    const shouldQualityFallback =
+      currentConfig?.device === "webgpu" && isProbablyGarbledText(text);
+
+    if (!shouldQualityFallback) {
+      post(RESPONSE_TYPES.DONE, requestId, { text, aborted: false });
+      return;
+    }
+
+    post(RESPONSE_TYPES.BANNER, requestId, {
+      message: "WebGPU output looked corrupted. Fell back to CPU (WASM)",
+      from: "webgpu",
+      to: "wasm",
+    });
+
+    post(RESPONSE_TYPES.STATUS, requestId, {
+      stage: "generate",
+      message: "Retrying on WASM",
+    });
+
+    const fallbackModelId = currentConfig?.modelId;
+    if (!fallbackModelId) throw new Error("Missing modelId for WASM fallback");
+
+    resetModel();
+
+    const wasmDtype = normalizeDtypeForDevice({
+      dtype: undefined,
+      device: "wasm",
+    });
+
+    generator = await withTimeout(
+      createGenerator({
+        modelId: fallbackModelId,
+        dtype: wasmDtype,
+        device: "wasm",
+      }),
+      LLM_TIMEOUTS.INIT_MS,
+      "Model reinit timed out (WASM fallback)"
+    );
+
+    currentConfig = {
+      modelId: fallbackModelId,
+      dtype: wasmDtype,
+      device: "wasm",
+    };
+
+    const second = await generateOnce({ streamTokens: false });
+    const text2 = second?.text || "";
+    if (!text2) throw new Error("Empty generation result");
+
+    post(RESPONSE_TYPES.DONE, requestId, { text: text2, aborted: false });
   } catch (e) {
     const aborted =
       typeof e?.message === "string" && e.message.toUpperCase() === "ABORTED";
 
     if (aborted) {
-      const text = cleanReply(acc, prompt);
       post(RESPONSE_TYPES.STATUS, requestId, {
         stage: "abort",
         message: "Aborted",
       });
-      post(RESPONSE_TYPES.DONE, requestId, { text, aborted: true });
+      post(RESPONSE_TYPES.DONE, requestId, { text: "", aborted: true });
       return;
     }
 
@@ -181,8 +302,11 @@ self.onmessage = async (evt) => {
       return;
     }
   } catch (e) {
+    const err = serializeError(e);
     post(RESPONSE_TYPES.ERROR, requestId, {
-      message: e?.message || "Worker error",
+      message: err.message,
+      stack: err.stack,
+      action: err.action || null,
       config: currentConfig,
     });
   }

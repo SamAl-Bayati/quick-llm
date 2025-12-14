@@ -5,7 +5,7 @@ const MODELS_MANIFEST = [
     id: "Xenova/distilgpt2",
     displayName: "DistilGPT-2 (tiny)",
     task: TASK_TEXT_GENERATION,
-    defaultDtype: "q8",
+    defaultDtype: null,
     preferredDevice: "webgpu",
     approxDownloadMB: 80,
     notes:

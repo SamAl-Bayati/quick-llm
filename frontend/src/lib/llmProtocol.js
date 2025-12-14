@@ -10,4 +10,9 @@ export const RESPONSE_TYPES = {
   DONE: "DONE",
   ERROR: "ERROR",
   STATUS: "STATUS",
+  BANNER: "BANNER",
+};
+
+export const ERROR_ACTIONS = {
+  RESTART_WASM: "RESTART_WASM",
 };
