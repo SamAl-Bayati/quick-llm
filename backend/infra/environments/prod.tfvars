@@ -1,7 +1,7 @@
 environment = "prod"
 aws_region  = "us-east-1"
 
-project_name = "project-template-backend"
+project_name = "quickllm-portfolio-backend"
 frontend_url = "https://example.com"
 additional_allowed_origins = [
   "https://example.com"
