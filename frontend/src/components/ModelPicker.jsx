@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchModels } from "../api/models";
 import { getSelectedModelId, setSelectedModelId } from "../utils/storage";
 
-function ModelPicker() {
+function ModelPicker({ onSelectedModelChange }) {
   const [models, setModels] = useState([]);
   const [selectedModelId, setSelectedModelIdState] = useState(
     () => getSelectedModelId() || ""
@@ -35,6 +35,9 @@ function ModelPicker() {
 
         setSelectedModelIdState(initial);
         setSelectedModelId(initial);
+        if (typeof onSelectedModelChange === "function") {
+          onSelectedModelChange(list.find((m) => m.id === initial) || null);
+        }
       } catch (e) {
         if (cancelled) return;
         setError("Failed to load models.");
@@ -48,12 +51,15 @@ function ModelPicker() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onSelectedModelChange]);
 
   function handleChange(e) {
     const nextId = e.target.value;
     setSelectedModelIdState(nextId);
     setSelectedModelId(nextId);
+    if (typeof onSelectedModelChange === "function") {
+      onSelectedModelChange(models.find((m) => m.id === nextId) || null);
+    }
   }
 
   return (

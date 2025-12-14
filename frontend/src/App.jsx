@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { pingBackend } from "./api/client";
 import ModelPicker from "./components/ModelPicker";
-import { smokeLoadTransformers } from "./lib/transformersSmoke";
+import Chat from "./components/Chat";
 
 function App() {
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
   const [error, setError] = useState(null);
-  const [tfStatus, setTfStatus] = useState("idle");
-  const [tfError, setTfError] = useState(null);
+  const [selectedModel, setSelectedModel] = useState(null);
 
   useEffect(() => {
     async function checkBackend() {
@@ -23,18 +22,6 @@ function App() {
 
     checkBackend();
   }, []);
-
-  async function handleLoadTransformers() {
-    try {
-      setTfStatus("loading");
-      setTfError(null);
-      await smokeLoadTransformers();
-      setTfStatus("loaded");
-    } catch (e) {
-      setTfStatus("error");
-      setTfError(e?.message || "Failed to load Transformers.");
-    }
-  }
 
   return (
     <div
@@ -70,38 +57,8 @@ function App() {
         )}
       </section>
 
-      <ModelPicker />
-
-      <section
-        style={{
-          marginTop: "1rem",
-          padding: "1.5rem",
-          borderRadius: "0.75rem",
-          background: "rgba(15, 23, 42, 0.9)",
-          border: "1px solid rgba(148, 163, 184, 0.4)",
-          maxWidth: "40rem",
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>Transformers.js</h2>
-        <button
-          onClick={handleLoadTransformers}
-          disabled={tfStatus === "loading" || tfStatus === "loaded"}
-          style={{ marginTop: "0.5rem" }}
-        >
-          {tfStatus === "loading" ? "Loading…" : "Load Transformers"}
-        </button>
-
-        <div style={{ marginTop: "0.75rem", opacity: 0.9 }}>
-          {tfStatus === "idle" && <div>Status: idle</div>}
-          {tfStatus === "loading" && <div>Status: loading</div>}
-          {tfStatus === "loaded" && <div>Status: Transformers loaded</div>}
-          {tfStatus === "error" && (
-            <div style={{ color: "#f97373" }}>
-              Status: error{tfError ? ` (${tfError})` : ""}
-            </div>
-          )}
-        </div>
-      </section>
+      <ModelPicker onSelectedModelChange={setSelectedModel} />
+      <Chat selectedModel={selectedModel} />
     </div>
   );
 }
