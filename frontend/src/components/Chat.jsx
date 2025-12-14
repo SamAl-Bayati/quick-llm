@@ -78,18 +78,16 @@ function Chat({ selectedModel }) {
     }
   }
 
-  async function handleAbort() {
-    abortWorker();
-    setSending(false);
-    setWorkerStatus("Aborted");
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: "Generation aborted. Re-initialize if needed.",
-      },
-    ]);
+  function handleCancelInit() {
+    resetWorker();
     setStatus(CHAT_STATUS.idle);
+    setInitError(null);
+    setWorkerStatus(null);
+  }
+
+  function handleStop() {
+    abortWorker();
+    setWorkerStatus("Stopping...");
   }
 
   async function handleSend(e) {
@@ -112,7 +110,7 @@ function Chat({ selectedModel }) {
       const prompt = buildPrompt(messages, text);
       let acc = "";
 
-      const finalText = await generateInWorker(
+      const result = await generateInWorker(
         {
           prompt,
           maxNewTokens: GENERATION_DEFAULTS.MAX_NEW_TOKENS,
@@ -122,6 +120,7 @@ function Chat({ selectedModel }) {
           onStatus: (p) => setWorkerStatus(p?.message || null),
           onToken: (p) => {
             const chunk = p?.text || "";
+            if (!chunk) return;
             acc += chunk;
             setMessages((prev) =>
               prev.map((m, idx) =>
@@ -131,6 +130,20 @@ function Chat({ selectedModel }) {
           },
         }
       );
+
+      const finalText = result?.text || acc;
+
+      if (result?.aborted) {
+        setWorkerStatus("Aborted");
+        if (!finalText) {
+          setMessages((prev) =>
+            prev.map((m, idx) =>
+              idx === assistantIndex ? { ...m, content: "Stopped." } : m
+            )
+          );
+        }
+        return;
+      }
 
       if (finalText && finalText !== acc) {
         setMessages((prev) =>
@@ -192,9 +205,15 @@ function Chat({ selectedModel }) {
             : "Initialize model"}
         </button>
 
-        {(status === CHAT_STATUS.loading || sending) && (
-          <button type="button" onClick={handleAbort}>
-            Abort
+        {status === CHAT_STATUS.loading && (
+          <button type="button" onClick={handleCancelInit}>
+            Cancel
+          </button>
+        )}
+
+        {sending && (
+          <button type="button" onClick={handleStop}>
+            Stop
           </button>
         )}
       </div>

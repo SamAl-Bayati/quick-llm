@@ -2,6 +2,8 @@ import { REQUEST_TYPES, RESPONSE_TYPES } from "./llmProtocol";
 
 let worker = null;
 let seq = 0;
+let activeGenerateRequestId = null;
+
 const pending = new Map();
 
 function nextRequestId() {
@@ -48,12 +50,14 @@ function ensureWorker() {
 
     if (type === RESPONSE_TYPES.DONE) {
       pending.delete(requestId);
-      entry.resolve(payload?.text || "");
+      if (activeGenerateRequestId === requestId) activeGenerateRequestId = null;
+      entry.resolve(payload || { text: "", aborted: false });
       return;
     }
 
     if (type === RESPONSE_TYPES.ERROR) {
       pending.delete(requestId);
+      if (activeGenerateRequestId === requestId) activeGenerateRequestId = null;
       entry.reject(new Error(payload?.message || "Worker error"));
     }
   };
@@ -73,26 +77,17 @@ export function resetWorker() {
     worker.terminate();
   } finally {
     worker = null;
+    activeGenerateRequestId = null;
   }
-}
-
-export function abortWorker() {
-  if (!worker) return;
-  try {
-    worker.postMessage({
-      type: REQUEST_TYPES.ABORT,
-      requestId: nextRequestId(),
-    });
-  } catch {
-    // ignore
-  }
-  resetWorker();
-  rejectAll(new Error("Aborted"));
 }
 
 function send(type, payload, handlers) {
   const w = ensureWorker();
   const requestId = nextRequestId();
+
+  if (type === REQUEST_TYPES.GENERATE) {
+    activeGenerateRequestId = requestId;
+  }
 
   return new Promise((resolve, reject) => {
     pending.set(requestId, {
@@ -104,6 +99,21 @@ function send(type, payload, handlers) {
 
     w.postMessage({ type, requestId, payload });
   });
+}
+
+export function abortWorker() {
+  if (!worker) return;
+  if (!activeGenerateRequestId) return;
+
+  try {
+    worker.postMessage({
+      type: REQUEST_TYPES.ABORT,
+      requestId: nextRequestId(),
+      payload: { targetRequestId: activeGenerateRequestId },
+    });
+  } catch {
+    // ignore
+  }
 }
 
 export function initModelInWorker({ modelId, dtype, device }, handlers) {
