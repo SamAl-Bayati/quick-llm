@@ -55,4 +55,7 @@ function ortStatic() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), ortStatic()],
+  worker: {
+    format: "es",
+  },
 });
