@@ -2,13 +2,20 @@ import { LLM_QUALITY } from "./llmConstants";
 
 const REPLACEMENT_CHAR = "\uFFFD";
 const DTYPES = {
+  AUTO: "auto",
   FP16: "fp16",
   FP32: "fp32",
   Q8: "q8",
   Q4: "q4",
+  Q4F16: "q4f16",
+  INT8: "int8",
+  UINT8: "uint8",
+  BNB4: "bnb4",
 };
 
 export function normalizeDtypeForDevice({ dtype, device }) {
+  if (dtype === DTYPES.AUTO) return undefined;
+
   if (device === "webgpu") {
     if (dtype === DTYPES.FP16 || dtype === DTYPES.FP32) return dtype;
     return DTYPES.FP16;
@@ -19,7 +26,11 @@ export function normalizeDtypeForDevice({ dtype, device }) {
       dtype === DTYPES.FP16 ||
       dtype === DTYPES.FP32 ||
       dtype === DTYPES.Q8 ||
-      dtype === DTYPES.Q4
+      dtype === DTYPES.Q4 ||
+      dtype === DTYPES.Q4F16 ||
+      dtype === DTYPES.INT8 ||
+      dtype === DTYPES.UINT8 ||
+      dtype === DTYPES.BNB4
     ) {
       return dtype;
     }

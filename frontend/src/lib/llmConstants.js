@@ -4,7 +4,7 @@ export const LLM_TIMEOUTS = {
   WARMUP_MS: 60_000,
 };
 
-export const DTYPE_OPTIONS = ["q4", "q8"];
+export const DTYPE_OPTIONS = ["auto", "q4", "q8", "int8", "uint8"];
 
 export const SETTINGS_DEFAULTS = {
   dtype: "q8",

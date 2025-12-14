@@ -85,6 +85,35 @@ function parseProgressPercent(p) {
   return null;
 }
 
+function toErrText(e) {
+  if (!e) return "";
+  if (typeof e === "string") return e;
+  if (typeof e?.message === "string") return e.message;
+  return String(e);
+}
+
+function isMissingFileError(e) {
+  const msg = toErrText(e).toLowerCase();
+  return msg.includes("could not locate file");
+}
+
+function unique(list) {
+  return Array.from(new Set(list.filter(Boolean)));
+}
+
+function buildWasmDtypeFallbacks(requested) {
+  const r = requested || null;
+
+  if (r === "q8") return ["int8", "uint8", "q4", "q4f16"];
+  if (r === "q4") return ["q4f16", "bnb4", "int8", "uint8"];
+
+  return ["int8", "uint8", "q4", "q4f16", "bnb4"];
+}
+
+function dtypeLabel(dtype) {
+  return dtype ? dtype : "auto";
+}
+
 async function createGenerator({ modelId, dtype, device, onProgress }) {
   const { pipeline, env } = await getTransformers();
   configureTransformersEnv(env);
@@ -173,6 +202,47 @@ async function initModel({ modelId, dtype, device }, requestId) {
     currentConfig = preferred;
     return currentConfig;
   } catch (e) {
+    if (preferred.device === "wasm" && isMissingFileError(e)) {
+      const fallbacks = unique(buildWasmDtypeFallbacks(preferred.dtype));
+
+      for (const dt of fallbacks) {
+        post(RESPONSE_TYPES.STATUS, requestId, {
+          stage: "init",
+          step: "fetch",
+          message: `Fetching model files… (dtype ${dtypeLabel(dt)})`,
+        });
+
+        try {
+          generator = await withTimeout(
+            createGenerator({
+              modelId: preferred.modelId,
+              dtype: dt,
+              device: "wasm",
+            }),
+            LLM_TIMEOUTS.INIT_MS,
+            "Model initialization timed out"
+          );
+
+          post(RESPONSE_TYPES.BANNER, requestId, {
+            message: `Requested dtype "${dtypeLabel(
+              preferred.dtype
+            )}" not available for this model. Using "${dt}"`,
+            from: dtypeLabel(preferred.dtype),
+            to: dt,
+          });
+
+          postInitStatus(requestId, "runtime", "Initializing runtime…");
+          postInitStatus(requestId, "warmup", "Warming up…");
+          await warmup(requestId);
+
+          currentConfig = { ...preferred, dtype: dt, device: "wasm" };
+          return currentConfig;
+        } catch (e2) {
+          if (!isMissingFileError(e2)) throw e2;
+        }
+      }
+    }
+
     const shouldFallback = preferred.device !== "wasm";
     if (!shouldFallback) throw e;
 

@@ -115,7 +115,8 @@ function ModelPicker({ onSelectedModelChange }) {
             >
               {models.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.displayName || m.id}
+                  {(m.displayName || m.id) +
+                    (m.recommended ? " (recommended)" : "")}
                 </option>
               ))}
             </select>
