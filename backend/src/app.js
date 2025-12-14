@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const { MODELS_MANIFEST } = require("./modelsManifest");
 
 const app = express();
 
@@ -11,7 +12,6 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow REST clients / curl with no origin
       if (!origin || allowedOrigins.length === 0) {
         return callback(null, true);
       }
@@ -23,14 +23,23 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 app.use(express.json());
 
-// Health check route
 app.get("/health", (req, res) => {
   res.json({ status: "ok", message: "Backend is alive" });
 });
 
-// Placeholder route to be customized per project
+app.get("/api/models", (req, res) => {
+  res.json({ models: MODELS_MANIFEST });
+});
+
 app.get("/api/example", (req, res) => {
   res.json({ message: "Example API route" });
 });

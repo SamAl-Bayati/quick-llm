@@ -4,12 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "copy:ort": "node scripts/copy-ort.mjs",
+    "postinstall": "npm run copy:ort",
+    "dev": "npm run copy:ort && vite",
+    "build": "npm run copy:ort && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "axios": "^1.13.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

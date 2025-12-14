@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "backend/**"
-      - "infra/**"
       - ".github/workflows/deploy-backend-prod.yml"
 
 jobs:
@@ -31,7 +30,7 @@ jobs:
 
       - name: Package Lambda zip for OpenTofu
         run: |
-          ZIP_OUT="${GITHUB_WORKSPACE}/infra/function.zip"
+          ZIP_OUT="${GITHUB_WORKSPACE}/backend/infra/function.zip"
           rm -f "$ZIP_OUT"
 
           cd "${GITHUB_WORKSPACE}/backend"
@@ -53,7 +52,7 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: OpenTofu init (prod)
-        working-directory: infra
+        working-directory: backend/infra
         run: |
           REPO="${GITHUB_REPOSITORY#*/}"
           tofu init \
@@ -66,14 +65,14 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
 
       - name: OpenTofu apply (prod)
-        working-directory: infra
+        working-directory: backend/infra
         run: |
           tofu apply -auto-approve \
             -var-file="environments/prod.tfvars" \
-            -var="lambda_zip_path=${GITHUB_WORKSPACE}/infra/function.zip"
+            -var="lambda_zip_path=${GITHUB_WORKSPACE}/backend/infra/function.zip"
 
       - name: Smoke test (prod)
-        working-directory: infra
+        working-directory: backend/infra
         run: |
           API=$(tofu output -raw api_endpoint)
           echo "API=$API"
