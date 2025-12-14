@@ -117,7 +117,8 @@ function ModelPicker({ onSelectedModelChange }) {
                 <strong>Task:</strong> {selectedModel.task}
               </div>
               <div>
-                <strong>Default dtype:</strong> {selectedModel.defaultDtype}
+                <strong>Default dtype:</strong>{" "}
+                {selectedModel.defaultDtype || "auto"}
               </div>
               <div>
                 <strong>Preferred device:</strong>{" "}

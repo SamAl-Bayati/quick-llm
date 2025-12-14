@@ -1,5 +1,6 @@
 const STORAGE_KEYS = {
   selectedModelId: "selectedModelId",
+  llmSettings: "llmSettings",
 };
 
 export function getSelectedModelId() {
@@ -17,6 +18,28 @@ export function setSelectedModelId(modelId) {
       return;
     }
     localStorage.setItem(STORAGE_KEYS.selectedModelId, modelId);
+  } catch {
+    // ignore
+  }
+}
+
+export function getLlmSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.llmSettings);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setLlmSettings(settings) {
+  try {
+    if (!settings) {
+      localStorage.removeItem(STORAGE_KEYS.llmSettings);
+      return;
+    }
+    localStorage.setItem(STORAGE_KEYS.llmSettings, JSON.stringify(settings));
   } catch {
     // ignore
   }

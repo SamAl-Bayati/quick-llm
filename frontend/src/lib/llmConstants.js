@@ -3,9 +3,17 @@ export const LLM_TIMEOUTS = {
   GENERATE_MS: 120_000,
 };
 
+export const DTYPE_OPTIONS = ["q4", "q8"];
+
+export const SETTINGS_DEFAULTS = {
+  dtype: "q8",
+  maxNewTokens: 32,
+  temperature: 0.4,
+};
+
 export const GENERATION_DEFAULTS = {
-  MAX_NEW_TOKENS: 32,
-  TEMPERATURE: 0.4,
+  MAX_NEW_TOKENS: SETTINGS_DEFAULTS.maxNewTokens,
+  TEMPERATURE: SETTINGS_DEFAULTS.temperature,
 };
 
 export const LLM_QUALITY = {

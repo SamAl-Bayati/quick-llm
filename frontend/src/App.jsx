@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { pingBackend } from "./api/client";
 import ModelPicker from "./components/ModelPicker";
 import Chat from "./components/Chat";
+import SettingsPanel from "./components/SettingsPanel";
+import { loadSettings, saveSettings } from "./lib/settings";
+import { SETTINGS_DEFAULTS } from "./lib/llmConstants";
 
 function App() {
   const [backendStatus, setBackendStatus] = useState("Checking backend...");
   const [error, setError] = useState(null);
   const [selectedModel, setSelectedModel] = useState(null);
+  const [settings, setSettings] = useState(() => loadSettings());
 
   useEffect(() => {
     async function checkBackend() {
@@ -22,6 +26,14 @@ function App() {
 
     checkBackend();
   }, []);
+
+  function handleSettingsChange(patch) {
+    setSettings((prev) => saveSettings({ ...prev, ...(patch || {}) }));
+  }
+
+  function handleSettingsReset() {
+    setSettings(saveSettings(SETTINGS_DEFAULTS));
+  }
 
   return (
     <div
@@ -58,7 +70,12 @@ function App() {
       </section>
 
       <ModelPicker onSelectedModelChange={setSelectedModel} />
-      <Chat selectedModel={selectedModel} />
+      <SettingsPanel
+        settings={settings}
+        onChange={handleSettingsChange}
+        onReset={handleSettingsReset}
+      />
+      <Chat selectedModel={selectedModel} settings={settings} />
     </div>
   );
 }

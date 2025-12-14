@@ -23,7 +23,7 @@ function buildPrompt(messages, nextUserText) {
   return `User: ${lastUser}\nAssistant:`;
 }
 
-function Chat({ selectedModel }) {
+function Chat({ selectedModel, settings }) {
   const [status, setStatus] = useState(CHAT_STATUS.idle);
   const [initError, setInitError] = useState(null);
   const [banner, setBanner] = useState(null);
@@ -41,10 +41,7 @@ function Chat({ selectedModel }) {
   const modelLabel =
     selectedModel?.displayName || modelId || "No model selected";
 
-  const canInit =
-    Boolean(modelId) &&
-    status !== CHAT_STATUS.loading &&
-    status !== CHAT_STATUS.ready;
+  const canInit = Boolean(modelId) && status !== CHAT_STATUS.loading;
 
   const canSend =
     status === CHAT_STATUS.ready && !sending && input.trim().length > 0;
@@ -61,6 +58,7 @@ function Chat({ selectedModel }) {
 
   async function handleInit() {
     try {
+      resetWorker();
       setStatus(CHAT_STATUS.loading);
       setInitError(null);
       setSendError(null);
@@ -73,7 +71,7 @@ function Chat({ selectedModel }) {
 
       const initPayload = {
         modelId,
-        dtype: selectedModel?.defaultDtype,
+        dtype: settings?.dtype ?? selectedModel?.defaultDtype,
         device: requestedDevice,
       };
 
@@ -145,8 +143,14 @@ function Chat({ selectedModel }) {
       const result = await generateInWorker(
         {
           prompt,
-          maxNewTokens: GENERATION_DEFAULTS.MAX_NEW_TOKENS,
-          temperature: GENERATION_DEFAULTS.TEMPERATURE,
+          maxNewTokens:
+            Number(settings?.maxNewTokens) ||
+            GENERATION_DEFAULTS.MAX_NEW_TOKENS,
+          temperature:
+            typeof settings?.temperature === "number"
+              ? settings.temperature
+              : Number(settings?.temperature) ||
+                GENERATION_DEFAULTS.TEMPERATURE,
         },
         {
           onStatus: (p) => setWorkerStatus(p?.message || null),
@@ -228,6 +232,11 @@ function Chat({ selectedModel }) {
             <strong>Device:</strong> {modelConfig.device}
           </div>
         )}
+        {modelConfig?.dtype && (
+          <div style={{ marginTop: "0.25rem", opacity: 0.85 }}>
+            <strong>Dtype:</strong> {modelConfig.dtype}
+          </div>
+        )}
         {workerStatus && (
           <div style={{ marginTop: "0.25rem", opacity: 0.85 }}>
             <strong>Worker:</strong> {workerStatus}
@@ -256,6 +265,8 @@ function Chat({ selectedModel }) {
         <button onClick={handleInit} disabled={!canInit}>
           {status === CHAT_STATUS.loading
             ? "Initializing…"
+            : status === CHAT_STATUS.ready
+            ? "Reinitialize model"
             : "Initialize model"}
         </button>
 
