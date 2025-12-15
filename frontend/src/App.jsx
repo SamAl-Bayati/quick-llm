@@ -9,6 +9,7 @@ import { clearAppCaches } from "./utils/cache";
 import { clearAppLocalStorage } from "./utils/storage";
 import { useModels } from "./hooks/useModels";
 import { Icons } from "./ui/icons";
+import { ASSETS } from "./assets/assets";
 
 function App() {
   const [settings, setSettings] = useState(() => loadSettings());
@@ -66,7 +67,7 @@ function App() {
         <div className="q-left">
           <img
             className="q-logo"
-            src="src\assets\qlm-high-resolution-logo-transparent-white.png"
+            src={ASSETS.QLM_LOGO_WHITE_PNG}
             alt="Quick LLM"
           />
           <div className="q-pill" title={topbarHint || ""}>
