@@ -27,7 +27,7 @@ const MODELS_MANIFEST = [
     id: "HuggingFaceTB/SmolLM2-1.7B-Instruct",
     displayName: "SmolLM2 1.7B",
     task: TASK_TEXT_GENERATION,
-    recommended: false,
+    recommended: true,
     defaultDtype: "q4f16",
     preferredDevice: "webgpu",
     approxDownloadMB: 1150,
