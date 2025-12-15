@@ -10,11 +10,15 @@ function isEnabled(m) {
   return m?.enabled !== false;
 }
 
+function isRecommended(m) {
+  return Boolean(m?.recommended) && isEnabled(m);
+}
+
 function pickInitialModelId(list) {
   const stored = getSelectedModelId();
   const storedOk = stored && list.some((m) => m.id === stored && isEnabled(m));
   if (storedOk) return stored;
-  return (list.find(isEnabled) || null)?.id || "";
+  return (list.find(isRecommended) || list.find(isEnabled) || null)?.id || "";
 }
 
 export function useModels(epoch = 0) {

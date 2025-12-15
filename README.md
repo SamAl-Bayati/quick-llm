@@ -1,3 +1,13 @@
+<p align="center">
+  <a href="https://quickllm.samalbayati.com">
+    <img src="frontend/src/assets/qlm-high-resolution-logo.png" alt="Quick LLM" width="280" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://quickllm.samalbayati.com">Try the app right now!</a>
+</p>
+
 # Quick LLM
 
 Quick LLM is a small portfolio friendly playground that runs open source models directly in the browser.
@@ -99,3 +109,4 @@ Deployed:
 
 - Backend deployment (OpenTofu + GitHub Actions): see `backend/README.md`
 - Frontend deployment (static hosting): see `frontend/README.md`
+

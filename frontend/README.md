@@ -1,3 +1,13 @@
+<p align="center">
+  <a href="https://quickllm.samalbayati.com">
+    <img src="src/assets/qlm-high-resolution-logo.png" alt="Quick LLM" width="280" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://quickllm.samalbayati.com">Try the app right now!</a>
+</p>
+
 # Quick LLM Frontend
 
 This is the Vite + React frontend for Quick LLM.

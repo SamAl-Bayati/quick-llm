@@ -1,3 +1,13 @@
+<p align="center">
+  <a href="https://quickllm.samalbayati.com">
+    <img src="../frontend/src/assets/qlm-high-resolution-logo.png" alt="Quick LLM" width="280" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://quickllm.samalbayati.com">Try the app right now!</a>
+</p>
+
 # Quick LLM Backend
 
 This is the backend for Quick LLM. It serves:
