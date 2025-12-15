@@ -99,14 +99,3 @@ Deployed:
 
 - Backend deployment (OpenTofu + GitHub Actions): see `backend/README.md`
 - Frontend deployment (static hosting): see `frontend/README.md`
-
-## Screenshots and demo
-
-Add assets under `docs/assets/` and reference them here.
-
-Example:
-
-```md
-![Model picker](docs/assets/screenshot-model-picker.png)
-![Chat](docs/assets/screenshot-chat.png)
-```
