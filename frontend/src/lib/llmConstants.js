@@ -16,8 +16,8 @@ export const DTYPE_OPTIONS = [
 
 export const SETTINGS_DEFAULTS = {
   dtype: "auto",
-  maxNewTokens: 32,
-  temperature: 0.4,
+  maxNewTokens: 128,
+  temperature: 0.7,
 };
 
 export const GENERATION_DEFAULTS = {
