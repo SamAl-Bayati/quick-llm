@@ -10,7 +10,7 @@
 
 # Quick LLM
 
-Quick LLM is a small portfolio friendly playground that runs open source models directly in the browser.
+Quick LLM is a small friendly playground that runs open source models directly in the browser.
 
 - Frontend: Vite + React
 - Backend: Express on AWS Lambda + API Gateway (HTTP API)
